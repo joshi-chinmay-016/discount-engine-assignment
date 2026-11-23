@@ -59,7 +59,16 @@ export function validatePdfFile(file) {
  * and ordering horizontal tokens left-to-right with column-gap detection.
  */
 export async function extractTextLinesFromPdf(dataBuffer) {
-  const uint8Data = dataBuffer instanceof Uint8Array ? dataBuffer : new Uint8Array(dataBuffer)
+  // pdfjs-dist throws if passed a Node.js Buffer instance directly.
+  // Ensure we pass a pure Uint8Array view over the ArrayBuffer.
+  let uint8Data
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(dataBuffer)) {
+    uint8Data = new Uint8Array(dataBuffer.buffer, dataBuffer.byteOffset, dataBuffer.byteLength)
+  } else if (dataBuffer instanceof Uint8Array) {
+    uint8Data = dataBuffer
+  } else {
+    uint8Data = new Uint8Array(dataBuffer)
+  }
 
   let pdfDoc
   try {

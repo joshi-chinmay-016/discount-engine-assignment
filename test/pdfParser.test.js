@@ -140,6 +140,24 @@ describe('PDF Parser — Tabular Line Parsing', () => {
 })
 
 describe('PDF Parser — Binary and Edge Case Handling', () => {
+  it('successfully extracts all 6 cart items from sample-data/cart.pdf', async () => {
+    const fs = await import('fs')
+    const path = await import('path')
+    const pdfPath = path.resolve('sample-data/cart.pdf')
+    const buffer = fs.readFileSync(pdfPath)
+
+    const res = await parseCartPDF(buffer)
+    assert.equal(res.errors.length, 0)
+    assert.equal(res.data.length, 6)
+    assert.equal(res.data[0].itemId, 'ITEM-01')
+    assert.equal(res.data[0].product, 'Cushion Cover')
+    assert.equal(res.data[0].brand, 'Natura Casa')
+    assert.equal(res.data[0].platform, 'Amazon India')
+    assert.equal(res.data[0].basePrice, 1299)
+    assert.equal(res.data[5].itemId, 'ITEM-06')
+    assert.equal(res.data[5].basePrice, 899)
+  })
+
   it('returns error when input is invalid', async () => {
     const res = await parseCartPDF(null)
     assert.equal(res.data.length, 0)

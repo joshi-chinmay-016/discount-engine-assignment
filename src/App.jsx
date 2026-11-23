@@ -9,6 +9,7 @@ import { useState } from 'react'
 import CsvUploader from './components/CsvUploader.jsx'
 import PdfUploader from './components/PdfUploader.jsx'
 import CartPreviewModal from './components/CartPreviewModal.jsx'
+import RuleCreator from './components/RuleCreator.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
 import { parseRulesCSV, parseCartCSV } from './engine/csvParser.js'
@@ -196,6 +197,30 @@ export default function App() {
     setPendingPdfCart(null)
   }
 
+  function handleRuleConfirmed(interpretedRule) {
+    const nextNum = rules.length + 1
+    const ruleId = `RULE-AI-${String(nextNum).padStart(2, '0')}`
+
+    const newRule = {
+      ruleId,
+      scope: interpretedRule.scope,
+      appliesTo: interpretedRule.appliesTo,
+      type: interpretedRule.type,
+      value: interpretedRule.value,
+      stackable: interpretedRule.stackable,
+      minSpend: interpretedRule.minSpend || 0,
+    }
+
+    const updatedRules = [...rules, newRule]
+    setRules(updatedRules)
+
+    // Automatically recalculate if cart items exist
+    if (cartItems.length > 0) {
+      const res = processCart(cartItems, updatedRules)
+      setResults(res)
+    }
+  }
+
   function handleCalculate() {
     const res = processCart(cartItems, rules)
     setResults(res)
@@ -214,6 +239,9 @@ export default function App() {
       </div>
 
       <div style={S.main}>
+
+        {/* Natural Language Rule Creator */}
+        <RuleCreator onRuleConfirmed={handleRuleConfirmed} />
 
         {/* Upload row */}
         <div style={S.grid2}>
