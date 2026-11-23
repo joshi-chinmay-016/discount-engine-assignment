@@ -7,6 +7,8 @@
 
 import { useState } from 'react'
 import CsvUploader from './components/CsvUploader.jsx'
+import PdfUploader from './components/PdfUploader.jsx'
+import CartPreviewModal from './components/CartPreviewModal.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
 import { parseRulesCSV, parseCartCSV } from './engine/csvParser.js'
@@ -137,6 +139,7 @@ export default function App() {
   const [cartErrors, setCartErrors] = useState([])
   const [cartFileName, setCartFileName]   = useState('')
 
+  const [pendingPdfCart, setPendingPdfCart] = useState(null)
   const [results, setResults]       = useState(null)
 
   // ── Handlers ──
@@ -154,7 +157,43 @@ export default function App() {
     setCartItems(data)
     setCartErrors(errors)
     setCartFileName(fileName)
+    setPendingPdfCart(null)
     setResults(null)
+  }
+
+  function handlePdfParsed({ data, errors, fileName }) {
+    if (data.length === 0 && errors.length > 0) {
+      setCartErrors(errors)
+      return
+    }
+    // Set pending cart for user review & confirmation
+    setPendingPdfCart({ items: data, fileName, errors })
+  }
+
+  function handlePdfError(errorMessage) {
+    setCartErrors([errorMessage])
+  }
+
+  function handleConfirmPdfCart() {
+    if (!pendingPdfCart) return
+    const newItems = pendingPdfCart.items
+    setCartItems(newItems)
+    setCartFileName(pendingPdfCart.fileName)
+    setCartErrors(pendingPdfCart.errors || [])
+    setPendingPdfCart(null)
+
+    // Automatically recalculate if rules are loaded, or clear stale results
+    if (rules.length > 0) {
+      const res = processCart(newItems, rules)
+      setResults(res)
+    } else {
+      setResults(null)
+    }
+  }
+
+  function handleCancelPdfCart() {
+    // Existing cartItems, rules, and results remain completely untouched
+    setPendingPdfCart(null)
   }
 
   function handleCalculate() {
@@ -206,14 +245,18 @@ export default function App() {
               label="cart.csv"
               description="Upload your cart CSV"
               onLoad={handleCartLoad}
-              hasData={cartItems.length > 0}
+              hasData={cartItems.length > 0 && cartFileName.toLowerCase().endsWith('.csv')}
               fileName={cartFileName}
+            />
+            <PdfUploader
+              onParsed={handlePdfParsed}
+              onError={handlePdfError}
             />
             <ErrorBanner errors={cartErrors} />
             {cartItems.length > 0 && (
               <div style={{ marginTop: '0.75rem' }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} loaded
+                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} active ({cartFileName})
                 </div>
                 <DataTable columns={CART_COLUMNS} rows={cartItems} />
               </div>
@@ -273,6 +316,14 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* PDF Cart Preview & Confirmation Modal */}
+        <CartPreviewModal
+          pendingCart={pendingPdfCart}
+          columns={CART_COLUMNS}
+          onConfirm={handleConfirmPdfCart}
+          onCancel={handleCancelPdfCart}
+        />
 
       </div>
     </div>

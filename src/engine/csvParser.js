@@ -109,6 +109,49 @@ export function parseRulesCSV(csvText) {
 }
 
 /**
+ * Validates and normalizes a single cart row into a CartItem object.
+ * Returns { item, error } where either item is a valid CartItem or error is a descriptive string.
+ * Shared by both csvParser and pdfParser to guarantee identical validation rules.
+ */
+export function normalizeCartRow(row, rowNum = null) {
+  const prefix = rowNum !== null ? `Row ${rowNum}: ` : ''
+  const missing = []
+
+  const itemId = row.item_id ?? row.itemId
+  const product = row.product
+  const brand = row.brand
+  const platform = row.platform
+  const rawPrice = row.base_price ?? row.basePrice
+
+  if (!itemId) missing.push('item_id')
+  if (!product) missing.push('product')
+  if (!brand) missing.push('brand')
+  if (!platform) missing.push('platform')
+  if (rawPrice === undefined || rawPrice === null || rawPrice === '') missing.push('base_price')
+
+  if (missing.length > 0) {
+    return { item: null, error: `${prefix}missing fields — ${missing.join(', ')}` }
+  }
+
+  const cleanPriceStr = String(rawPrice).trim().replace(/,/g, '').replace(/^[^\d.]+/, '')
+  const basePrice = parseFloat(cleanPriceStr)
+  if (isNaN(basePrice) || basePrice <= 0) {
+    return { item: null, error: `${prefix}base_price must be a positive number, got "${rawPrice}"` }
+  }
+
+  return {
+    item: {
+      itemId: String(itemId).trim(),
+      product: String(product).trim(),
+      brand: String(brand).trim(),
+      platform: String(platform).trim(),
+      basePrice: Math.round(basePrice),
+    },
+    error: null,
+  }
+}
+
+/**
  * Parses the raw text of cart.csv into an array of CartItem objects.
  * Returns { data, errors } where errors is an array of row-level issues.
  */
@@ -129,33 +172,12 @@ export function parseCartCSV(csvText) {
 
   rows.forEach((row, i) => {
     const rowNum = i + 2
-    const missing = []
-
-    if (!row.item_id) missing.push('item_id')
-    if (!row.product) missing.push('product')
-    if (!row.brand) missing.push('brand')
-    if (!row.platform) missing.push('platform')
-    if (row.base_price === undefined || row.base_price === '') missing.push('base_price')
-
-    if (missing.length > 0) {
-      errors.push(`Row ${rowNum}: missing fields — ${missing.join(', ')}`)
+    const { item, error } = normalizeCartRow(row, rowNum)
+    if (error) {
+      errors.push(error)
       return
     }
-
-    const cleanPriceStr = String(row.base_price).trim().replace(/,/g, '').replace(/^[^\d.]+/, '')
-    const basePrice = parseFloat(cleanPriceStr)
-    if (isNaN(basePrice) || basePrice <= 0) {
-      errors.push(`Row ${rowNum}: base_price must be a positive number, got "${row.base_price}"`)
-      return
-    }
-
-    data.push({
-      itemId: row.item_id.trim(),
-      product: row.product.trim(),
-      brand: row.brand.trim(),
-      platform: row.platform.trim(),
-      basePrice: Math.round(basePrice),
-    })
+    data.push(item)
   })
 
   return { data, errors }
