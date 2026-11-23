@@ -19,7 +19,8 @@ import Papa from 'papaparse'
  * Returns { data, errors } where errors is an array of row-level issues.
  */
 export function parseRulesCSV(csvText) {
-  const { data: rows, errors: parseErrors } = Papa.parse(csvText.trim(), {
+  const cleanedText = (csvText || '').replace(/^\uFEFF/, '').trim()
+  const { data: rows, errors: parseErrors } = Papa.parse(cleanedText, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, '_'),
@@ -49,8 +50,8 @@ export function parseRulesCSV(csvText) {
     }
 
     const scope = row.scope.trim().toLowerCase()
-    if (scope !== 'brand' && scope !== 'platform') {
-      errors.push(`Row ${rowNum}: scope must be "brand" or "platform", got "${row.scope}"`)
+    if (scope !== 'brand' && scope !== 'platform' && scope !== 'cart') {
+      errors.push(`Row ${rowNum}: scope must be "brand", "platform", or "cart", got "${row.scope}"`)
       return
     }
 
@@ -65,9 +66,33 @@ export function parseRulesCSV(csvText) {
       errors.push(`Row ${rowNum}: value must be a positive number, got "${row.value}"`)
       return
     }
+    if (type === 'percentage' && value > 100) {
+      errors.push(`Row ${rowNum}: percentage value cannot exceed 100%, got "${row.value}"`)
+      return
+    }
 
     const stackableStr = row.stackable.trim().toLowerCase()
     const stackable = stackableStr === 'true' || stackableStr === '1' || stackableStr === 'yes'
+
+    // Parse minimum spend threshold for cart rules if specified
+    let minSpend = 0
+    if (scope === 'cart') {
+      if (row.min_spend !== undefined && row.min_spend !== '') {
+        minSpend = parseFloat(String(row.min_spend).replace(/,/g, ''))
+      } else {
+        const appliesToRaw = row.applies_to.trim().toLowerCase()
+        if (appliesToRaw !== 'all' && appliesToRaw !== 'cart' && appliesToRaw !== 'total') {
+          const match = appliesToRaw.match(/[\d.]+/)
+          if (match) {
+            minSpend = parseFloat(match[0])
+          }
+        }
+      }
+      if (isNaN(minSpend) || minSpend < 0) {
+        errors.push(`Row ${rowNum}: invalid minimum spend threshold for cart rule, got "${row.min_spend || row.applies_to}"`)
+        return
+      }
+    }
 
     data.push({
       ruleId: row.rule_id.trim(),
@@ -76,6 +101,7 @@ export function parseRulesCSV(csvText) {
       type,
       value,
       stackable,
+      minSpend,
     })
   })
 
@@ -87,7 +113,8 @@ export function parseRulesCSV(csvText) {
  * Returns { data, errors } where errors is an array of row-level issues.
  */
 export function parseCartCSV(csvText) {
-  const { data: rows, errors: parseErrors } = Papa.parse(csvText.trim(), {
+  const cleanedText = (csvText || '').replace(/^\uFEFF/, '').trim()
+  const { data: rows, errors: parseErrors } = Papa.parse(cleanedText, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, '_'),
@@ -115,7 +142,8 @@ export function parseCartCSV(csvText) {
       return
     }
 
-    const basePrice = parseFloat(row.base_price)
+    const cleanPriceStr = String(row.base_price).trim().replace(/,/g, '').replace(/^[^\d.]+/, '')
+    const basePrice = parseFloat(cleanPriceStr)
     if (isNaN(basePrice) || basePrice <= 0) {
       errors.push(`Row ${rowNum}: base_price must be a positive number, got "${row.base_price}"`)
       return

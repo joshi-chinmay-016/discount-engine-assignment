@@ -17,7 +17,16 @@ import { processCart, cartTotal } from './engine/discountEngine.js'
 const RULES_COLUMNS = [
   { key: 'ruleId',    label: 'Rule ID' },
   { key: 'scope',     label: 'Scope',      render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-  { key: 'appliesTo', label: 'Applies To' },
+  {
+    key: 'appliesTo',
+    label: 'Applies To',
+    render: (v, row) => {
+      if (row.scope === 'cart') {
+        return row.minSpend > 0 ? `Orders >= Rs.${row.minSpend.toLocaleString('en-IN')}` : 'All Cart Orders'
+      }
+      return v
+    },
+  },
   { key: 'type',      label: 'Type',       render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
   {
     key: 'value',
@@ -96,6 +105,21 @@ const S = {
   },
   totalLabel: { fontWeight: 700, fontSize: 14, color: '#131A48' },
   totalValue: { fontWeight: 700, fontSize: 16, color: '#131A48' },
+  summaryContainer: {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+    gap: '0.45rem', marginTop: '0.9rem', paddingTop: '0.75rem',
+    borderTop: '1px solid #CECECE',
+  },
+  summaryLine: {
+    display: 'flex', justifyContent: 'space-between', width: '320px',
+    fontSize: 13, color: '#555',
+  },
+  summaryFinalLine: {
+    display: 'flex', justifyContent: 'space-between', width: '320px',
+    fontSize: 16, fontWeight: 700, color: '#131A48',
+    paddingTop: '0.55rem', marginTop: '0.25rem',
+    borderTop: '2px solid #131A48',
+  },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
     borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -217,10 +241,35 @@ export default function App() {
         {results && (
           <div style={S.section}>
             <div style={S.sectionTitle}>Cart Summary</div>
-            <DataTable columns={RESULTS_COLUMNS} rows={results} />
-            <div style={S.totalRow}>
-              <span style={S.totalLabel}>Cart Total</span>
-              <span style={S.totalValue}>Rs.{cartTotal(results).toLocaleString('en-IN')}</span>
+            <DataTable columns={RESULTS_COLUMNS} rows={results.items || results} />
+
+            <div style={S.summaryContainer}>
+              <div style={S.summaryLine}>
+                <span>Items Subtotal:</span>
+                <span style={{ fontWeight: 600, color: '#131A48' }}>
+                  Rs.{(results.subtotal ?? cartTotal(results)).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {results.cartDiscount > 0 && (
+                <div style={S.summaryLine}>
+                  <span>
+                    Cart Discount{' '}
+                    <span style={{ fontSize: 11, color: '#1e5c2c', fontStyle: 'italic' }}>
+                      ({results.cartReasoning})
+                    </span>
+                    :
+                  </span>
+                  <span style={{ fontWeight: 600, color: '#1e5c2c' }}>
+                    -Rs.{results.cartDiscount.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+
+              <div style={S.summaryFinalLine}>
+                <span>Final Payable:</span>
+                <span>Rs.{cartTotal(results).toLocaleString('en-IN')}</span>
+              </div>
             </div>
           </div>
         )}
