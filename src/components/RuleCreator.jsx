@@ -17,7 +17,7 @@ const EXAMPLES = [
   'Give Rs.150 off on Natura Casa products',
 ]
 
-export default function RuleCreator({ onRuleConfirmed, disabled = false }) {
+export default function RuleCreator({ onRuleConfirmed, disabled = false, style }) {
   const [instruction, setInstruction] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -90,6 +90,7 @@ export default function RuleCreator({ onRuleConfirmed, disabled = false }) {
         borderRadius: 6,
         padding: '1.2rem 1.4rem',
         marginBottom: '1.2rem',
+        ...style,
       }}
     >
       <div

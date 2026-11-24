@@ -163,6 +163,12 @@ export function applyDiscounts(item, rules) {
     reasoningParts.push(ruleToReasoning(winner))
   }
 
+  // ── Stackable Rule Evaluation: Declaration Order Execution Policy ──────────────
+  // Stackable discounts are applied sequentially in the exact declaration order
+  // they appear in the input rules collection (matching array order / CSV order).
+  // Each stackable rule calculates its discount against the running reduced price
+  // established by previous offers, ensuring deterministic and transparent execution.
+  // The engine does not reorder stackable offers behind the merchant's back.
   for (const rule of stackable) {
     if (price <= 0) break
     const discount = calculateDiscountAmount(price, rule)
@@ -257,6 +263,7 @@ export function applyCartDiscounts(subtotal, cartRules) {
     reasoningParts.push(ruleToReasoning(winner))
   }
 
+  // Apply qualifying stackable cart rules sequentially in exact declaration order
   for (const rule of stackable) {
     if (remaining <= 0) break
     const discount = calculateDiscountAmount(remaining, rule)

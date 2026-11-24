@@ -179,7 +179,10 @@ function isHeaderLine(line) {
  */
 function isIgnorableLine(line) {
   const lower = line.toLowerCase().trim()
-  if (lower.startsWith('page ') || lower.startsWith('cart summary') || lower.startsWith('invoice')) {
+  if (lower.startsWith('---') || lower.startsWith('===') || lower.startsWith('___')) {
+    return true
+  }
+  if (lower.startsWith('page ') || lower.includes('page ') || lower.startsWith('cart summary') || lower.startsWith('invoice') || lower.startsWith('order ') || lower.startsWith('retail enterprise')) {
     return true
   }
   if (lower.startsWith('subtotal') || lower.startsWith('grand total') || lower.startsWith('total:')) {
@@ -189,8 +192,9 @@ function isIgnorableLine(line) {
 }
 
 /**
- * Tokenizes a single line of text into 5 candidate columns:
- *   [itemId, product, brand, platform, basePrice]
+ * Tokenizes a single line of text into candidate columns:
+ * Supports both 5-column layouts: [itemId, product, brand, platform, basePrice]
+ * and 4-column layouts:          [product, brand, platform, basePrice]
  */
 function tokenizeLine(line) {
   // Strategy 1: Tab-separated (created by column gap detector)
@@ -203,6 +207,14 @@ function tokenizeLine(line) {
         brand: parts[2],
         platform: parts[3],
         base_price: parts[4],
+      }
+    }
+    if (parts.length === 4) {
+      return {
+        product: parts[0],
+        brand: parts[1],
+        platform: parts[2],
+        base_price: parts[3],
       }
     }
   }
@@ -219,6 +231,14 @@ function tokenizeLine(line) {
         base_price: parts[4],
       }
     }
+    if (parts.length === 4) {
+      return {
+        product: parts[0],
+        brand: parts[1],
+        platform: parts[2],
+        base_price: parts[3],
+      }
+    }
   }
 
   // Strategy 3: Comma-separated
@@ -231,6 +251,14 @@ function tokenizeLine(line) {
         brand: parts[2],
         platform: parts[3],
         base_price: parts[4],
+      }
+    }
+    if (parts.length === 4) {
+      return {
+        product: parts[0],
+        brand: parts[1],
+        platform: parts[2],
+        base_price: parts[3],
       }
     }
   }
@@ -246,16 +274,22 @@ function tokenizeLine(line) {
       base_price: multiSpaceParts[4],
     }
   }
+  if (multiSpaceParts.length === 4) {
+    return {
+      product: multiSpaceParts[0],
+      brand: multiSpaceParts[1],
+      platform: multiSpaceParts[2],
+      base_price: multiSpaceParts[3],
+    }
+  }
 
   // Strategy 5: Space-separated with regex anchoring (item_id at start, price at end)
-  const match = line.match(/^([A-Za-z0-9_-]+)\s+(.+)\s+(\d+(?:[.,]\d+)?)$/)
-  if (match) {
-    const itemId = match[1]
-    const middle = match[2].trim()
-    const basePrice = match[3]
+  const match5 = line.match(/^([A-Za-z0-9_-]+)\s+(.+)\s+(\d+(?:[.,]\d+)?)$/)
+  if (match5) {
+    const itemId = match5[1]
+    const middle = match5[2].trim()
+    const basePrice = match5[3]
 
-    // Attempt to parse middle parts if platforms/brands are standard
-    // E.g. "Cushion Cover Natura Casa Amazon India"
     const words = middle.split(/\s+/)
     if (words.length >= 3) {
       return {
@@ -269,6 +303,19 @@ function tokenizeLine(line) {
   }
 
   return null
+}
+
+/**
+ * Generates collision-safe item ID for 4-column carts lacking explicit item IDs.
+ */
+function generatePdfItemId(seenItemIds, index) {
+  let num = index
+  let id = `ITEM-${String(num).padStart(2, '0')}`
+  while (seenItemIds.has(id)) {
+    num++
+    id = `ITEM-${String(num).padStart(2, '0')}`
+  }
+  return id
 }
 
 /**
@@ -297,7 +344,6 @@ export function parseCartLines(lines) {
 
     const candidate = tokenizeLine(line)
     if (!candidate) {
-      // If we are after header row and line is not empty/ignorable, record parsing issue
       if (hasSeenHeader) {
         errors.push(`Row ${rowCount + 2}: unable to extract required columns from line: "${line}"`)
       }
@@ -305,6 +351,12 @@ export function parseCartLines(lines) {
     }
 
     rowCount++
+
+    // For 4-column layouts lacking an explicit item_id, generate a collision-safe ID
+    if (!candidate.item_id) {
+      candidate.item_id = generatePdfItemId(seenItemIds, rowCount)
+    }
+
     const { item, error } = normalizeCartRow(candidate, rowCount)
     if (error) {
       errors.push(error)

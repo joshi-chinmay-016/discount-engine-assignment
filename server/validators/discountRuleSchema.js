@@ -7,6 +7,8 @@
 
 const ALLOWED_SCOPES = ['brand', 'platform', 'cart']
 const ALLOWED_TYPES = ['percentage', 'flat']
+const ALLOWED_CANDIDATE_KEYS = new Set(['scope', 'appliesTo', 'type', 'value', 'stackable', 'minSpend'])
+const ALLOWED_RESPONSE_KEYS = new Set(['status', 'rule', 'message', 'question'])
 
 /**
  * Validates a candidate rule object.
@@ -19,44 +21,80 @@ export function validateRuleCandidate(candidate) {
 
   const errors = []
 
+  // Check for unexpected fields
+  const extraKeys = Object.keys(candidate).filter((k) => !ALLOWED_CANDIDATE_KEYS.has(k))
+  if (extraKeys.length > 0) {
+    errors.push(`Unexpected field(s) in rule candidate: ${extraKeys.map((k) => `"${k}"`).join(', ')}.`)
+  }
+
+  // Required field checks
+  if (candidate.scope === undefined || candidate.scope === null) {
+    errors.push('Missing required field "scope".')
+  }
+  if (candidate.type === undefined || candidate.type === null) {
+    errors.push('Missing required field "type".')
+  }
+  if (candidate.value === undefined || candidate.value === null) {
+    errors.push('Missing required field "value".')
+  }
+  if (candidate.stackable === undefined || candidate.stackable === null) {
+    errors.push('Missing required field "stackable".')
+  }
+
   // 1. Scope validation
   const scope = typeof candidate.scope === 'string' ? candidate.scope.trim().toLowerCase() : ''
-  if (!ALLOWED_SCOPES.includes(scope)) {
+  if (candidate.scope !== undefined && !ALLOWED_SCOPES.includes(scope)) {
     errors.push(`Invalid scope "${candidate.scope}". Must be one of: ${ALLOWED_SCOPES.join(', ')}.`)
   }
 
   // 2. Type validation
   const type = typeof candidate.type === 'string' ? candidate.type.trim().toLowerCase() : ''
-  if (!ALLOWED_TYPES.includes(type)) {
+  if (candidate.type !== undefined && !ALLOWED_TYPES.includes(type)) {
     errors.push(`Invalid discount type "${candidate.type}". Must be "percentage" or "flat".`)
   }
 
   // 3. Value validation
   const value = candidate.value
-  if (typeof value !== 'number' || !Number.isFinite(value) || Number.isNaN(value)) {
-    errors.push(`Discount value must be a valid finite number, got "${value}".`)
-  } else if (value <= 0) {
-    errors.push(`Discount value must be greater than zero, got ${value}.`)
-  } else if (type === 'percentage' && value > 100) {
-    errors.push(`Percentage discount cannot exceed 100%, got ${value}%.`)
+  if (value !== undefined && value !== null) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || Number.isNaN(value)) {
+      errors.push(`Discount value must be a valid finite number, got "${value}".`)
+    } else if (value <= 0) {
+      errors.push(`Discount value must be greater than zero, got ${value}.`)
+    } else if (type === 'percentage' && value > 100) {
+      errors.push(`Percentage discount cannot exceed 100%, got ${value}%.`)
+    }
   }
 
   // 4. Stackable validation
-  if (typeof candidate.stackable !== 'boolean') {
+  if (candidate.stackable !== undefined && typeof candidate.stackable !== 'boolean') {
     errors.push(`Stackable must be a strict boolean (true or false), got "${candidate.stackable}".`)
   }
 
-  // 5. AppliesTo validation
+  // 5. AppliesTo & scope consistency validation
   let appliesTo = candidate.appliesTo
   if (scope === 'brand' || scope === 'platform') {
     if (!appliesTo || typeof appliesTo !== 'string' || appliesTo.trim() === '') {
       errors.push(`Rule with scope "${scope}" requires a non-empty "appliesTo" target.`)
     } else {
-      appliesTo = appliesTo.trim()
+      const trimmedTarget = appliesTo.trim()
+      if (['cart', 'all'].includes(trimmedTarget.toLowerCase())) {
+        errors.push(`Rule with scope "${scope}" cannot have appliesTo "${trimmedTarget}".`)
+      } else {
+        appliesTo = trimmedTarget
+      }
+    }
+    // minSpend on item-level rules is inconsistent
+    if (candidate.minSpend !== undefined && candidate.minSpend !== null && candidate.minSpend > 0) {
+      errors.push(`Minimum spend condition (minSpend) is only supported for cart-level rules, not for ${scope} rules.`)
     }
   } else if (scope === 'cart') {
-    // For cart rules, appliesTo can describe condition or default to "cart"
-    appliesTo = typeof appliesTo === 'string' && appliesTo.trim() !== '' ? appliesTo.trim() : 'cart'
+    if (appliesTo !== undefined && typeof appliesTo === 'string' && appliesTo.trim() !== '') {
+      const trimmedTarget = appliesTo.trim()
+      if (!['cart', 'all'].includes(trimmedTarget.toLowerCase())) {
+        errors.push(`Cart-level rule cannot target a specific brand or platform ("${trimmedTarget}").`)
+      }
+    }
+    appliesTo = 'cart'
   }
 
   // 6. Minimum spend validation (cart rules or optional condition)
@@ -92,10 +130,19 @@ export function validateRuleCandidate(candidate) {
  * Validates the full structured response from the LLM service.
  */
 export function validateLlmResponse(payload) {
-  if (!payload || typeof payload !== 'object') {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return {
       status: 'error',
       message: 'Malformed response received: expected JSON object.',
+    }
+  }
+
+  // Reject unexpected top-level fields
+  const extraKeys = Object.keys(payload).filter((k) => !ALLOWED_RESPONSE_KEYS.has(k))
+  if (extraKeys.length > 0) {
+    return {
+      status: 'error',
+      message: `Malformed response: unexpected top-level field(s) ${extraKeys.map((k) => `"${k}"`).join(', ')}.`,
     }
   }
 

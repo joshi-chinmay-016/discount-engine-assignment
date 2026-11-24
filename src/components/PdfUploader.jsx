@@ -47,12 +47,11 @@ export default function PdfUploader({ onParsed, onError, disabled = false }) {
       style={{
         border: '2px dashed #CECECE',
         borderRadius: 6,
-        padding: '0.9rem 1.2rem',
+        padding: '1rem 1.2rem',
         background: loading ? '#f7f7f9' : '#fafafa',
         cursor: disabled || loading ? 'not-allowed' : 'pointer',
         transition: 'all 0.15s ease',
         opacity: disabled ? 0.6 : 1,
-        marginTop: '0.6rem',
       }}
       onClick={() => {
         if (!disabled && !loading) {
