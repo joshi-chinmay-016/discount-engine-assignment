@@ -101,10 +101,13 @@ describe('Vercel Deployment Architecture & Serverless Function Handler', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instruction: 'Give 15% off on all Amazon India products' }),
       })
-      // If API key is present or error handled gracefully
-      assert.ok([200, 422, 500].includes(response.status))
+      assert.equal(response.status, 200)
       const data = await response.json()
-      assert.ok(data.status === 'success' || data.status === 'error' || data.status === 'needs_clarification')
+      assert.equal(data.status, 'success')
+      assert.ok(data.rule)
+      assert.equal(data.rule.scope, 'platform')
+      assert.equal(data.rule.appliesTo, 'Amazon India')
+      assert.equal(data.rule.value, 15)
     } finally {
       await new Promise((resolve) => server.close(resolve))
     }

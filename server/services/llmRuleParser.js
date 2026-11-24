@@ -132,8 +132,8 @@ export async function callLlmProvider(instruction, options = {}) {
       if (response.status === 401 || response.status === 403) {
         throw new Error('Invalid LLM API key. Please check your server environment configuration.')
       }
-      const errBody = await response.text()
-      throw new Error(`LLM provider returned error ${response.status}: ${errBody}`)
+      // Sanitize: do not leak raw upstream provider response bodies to clients
+      throw new Error(`LLM provider service error (${response.status}). Please try again later.`)
     }
 
     const result = await response.json()
@@ -189,8 +189,8 @@ export async function callLlmProvider(instruction, options = {}) {
       if (response.status === 401 || response.status === 403) {
         throw new Error('Invalid OpenAI API key. Please check your server environment configuration.')
       }
-      const errBody = await response.text()
-      throw new Error(`OpenAI returned error ${response.status}: ${errBody}`)
+      // Sanitize: do not leak raw upstream provider response bodies to clients
+      throw new Error(`OpenAI provider service error (${response.status}). Please try again later.`)
     }
 
     const result = await response.json()

@@ -109,17 +109,22 @@ describe('Phase 4.3 — Production Frontend and Backend Integration', () => {
     assert.ok(html.includes('<div id="root"></div>') || html.includes('id="root"'))
   })
 
-  it('Check 7: Interprets a natural language discount rule (using mock/live parser)', async () => {
+  it('Check 7: Interprets a natural language discount rule and returns valid rule schema', async () => {
     const res = await fetch(`${baseUrl}/api/rules/interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instruction: 'Give 15% off on all Natura Casa products' }),
     })
 
-    // If API key is configured or returns 200, or handles provider gracefully
-    assert.ok([200, 422, 500].includes(res.status))
+    assert.equal(res.status, 200)
     const data = await res.json()
-    assert.ok(data.status === 'success' || data.status === 'error' || data.status === 'needs_clarification')
+    assert.equal(data.status, 'success')
+    assert.ok(data.rule, 'Response must contain a rule object')
+    assert.equal(data.rule.scope, 'brand')
+    assert.equal(data.rule.appliesTo, 'Natura Casa')
+    assert.equal(data.rule.type, 'percentage')
+    assert.equal(data.rule.value, 15)
+    assert.equal(data.rule.stackable, false)
   })
 
   it('Check 8: Frontend production bundle does not contain any secret LLM API keys', () => {

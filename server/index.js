@@ -43,18 +43,15 @@ export function getCorsOptions() {
 
   return {
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. same-origin, curl, server-to-server)
+      // Allow requests with no origin (e.g. same-origin without Origin header, curl, server-to-server)
       if (!origin) {
         return callback(null, true)
       }
-      if (allowedOrigins.length > 0) {
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true)
-        }
-        return callback(new Error(`CORS policy rejection: origin "${origin}" not permitted by FRONTEND_ORIGIN.`))
+      // In production, default-deny: origin must be explicitly listed in FRONTEND_ORIGIN whitelist
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+        return callback(null, true)
       }
-      // If FRONTEND_ORIGIN is not configured in production, allow same-host requests by default
-      return callback(null, true)
+      return callback(new Error(`CORS policy rejection: origin "${origin}" not permitted by FRONTEND_ORIGIN.`))
     },
   }
 }
