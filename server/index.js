@@ -93,10 +93,10 @@ app.use('/api', (req, res) => {
 })
 
 // ── Production Static File Serving & Frontend SPA Fallback ──────────────────
-// When NODE_ENV === 'production', serve compiled assets from dist/ and
-// fallback non-API routes to dist/index.html for client-side routing.
+// When NODE_ENV === 'production' and NOT running on Vercel (where Vercel CDN
+// serves static assets from dist/ directly at the edge), serve compiled assets.
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
     if (!fs.existsSync(DIST_DIR)) {
       return res.status(500).type('text/plain').send(
         "Production build directory (dist/) not found. Please run 'npm run build' before starting the production server."
@@ -114,7 +114,7 @@ app.use((req, res, next) => {
     return next()
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
     if (fs.existsSync(INDEX_HTML)) {
       return res.sendFile(INDEX_HTML)
     }
