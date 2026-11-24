@@ -88,7 +88,7 @@ npm run server   # Starts unified production server on PORT (default 3001)
   - *Full-Stack (Render, Railway, Fly.io, AWS App Runner)*: Recommended. Runs `npm run build && npm run server` as a single Node.js service.
   - *Static Hosting (Vercel, Netlify)*: Can host `dist/` statically for core calculations, but requires a separately deployed backend for AI rule creation.
 
-**Live Deployment URL**: `[Deployment URL: Pending / To be configured upon cloud platform deployment]`
+**Live Deployment URL**:  https://discount-engine-assignment-ck3avsmqq.vercel.app/
 
 ---
 
