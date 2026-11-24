@@ -43,18 +43,15 @@ export function getCorsOptions() {
 
   return {
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. same-origin, curl, server-to-server)
+      // Allow requests with no origin (e.g. same-origin without Origin header, curl, server-to-server)
       if (!origin) {
         return callback(null, true)
       }
-      if (allowedOrigins.length > 0) {
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true)
-        }
-        return callback(new Error(`CORS policy rejection: origin "${origin}" not permitted by FRONTEND_ORIGIN.`))
+      // In production, default-deny: origin must be explicitly listed in FRONTEND_ORIGIN whitelist
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+        return callback(null, true)
       }
-      // If FRONTEND_ORIGIN is not configured in production, allow same-host requests by default
-      return callback(null, true)
+      return callback(new Error(`CORS policy rejection: origin "${origin}" not permitted by FRONTEND_ORIGIN.`))
     },
   }
 }
@@ -93,10 +90,10 @@ app.use('/api', (req, res) => {
 })
 
 // ── Production Static File Serving & Frontend SPA Fallback ──────────────────
-// When NODE_ENV === 'production', serve compiled assets from dist/ and
-// fallback non-API routes to dist/index.html for client-side routing.
+// When NODE_ENV === 'production' and NOT running on Vercel (where Vercel CDN
+// serves static assets from dist/ directly at the edge), serve compiled assets.
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
     if (!fs.existsSync(DIST_DIR)) {
       return res.status(500).type('text/plain').send(
         "Production build directory (dist/) not found. Please run 'npm run build' before starting the production server."
@@ -114,7 +111,7 @@ app.use((req, res, next) => {
     return next()
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
     if (fs.existsSync(INDEX_HTML)) {
       return res.sendFile(INDEX_HTML)
     }

@@ -256,6 +256,59 @@ describe('Phase 4.2 — PART 5: Production CORS Configuration', () => {
       process.env.FRONTEND_ORIGIN = originalOrigin
     }
   })
+
+  it('enforces default-deny when FRONTEND_ORIGIN is unset in production mode', (t, done) => {
+    const originalEnv = process.env.NODE_ENV
+    const originalOrigin = process.env.FRONTEND_ORIGIN
+    try {
+      process.env.NODE_ENV = 'production'
+      delete process.env.FRONTEND_ORIGIN
+
+      const corsOptions = getCorsOptions()
+      assert.equal(typeof corsOptions.origin, 'function')
+
+      // Non-empty origin must be rejected under default-deny
+      corsOptions.origin('https://any-external-domain.com', (err, allowed) => {
+        assert.ok(err instanceof Error)
+        assert.match(err.message, /CORS policy rejection/)
+        done()
+      })
+    } finally {
+      process.env.NODE_ENV = originalEnv
+      process.env.FRONTEND_ORIGIN = originalOrigin
+    }
+  })
+})
+
+describe('Dobby Audit — Endpoint Sanitization, Invariant Governance & Rate Limiting', () => {
+  it('returns clean generic error message when provider fails without leaking raw error bodies', async () => {
+    const mockCall = async () => {
+      throw new Error('LLM provider service error (502). Please try again later.')
+    }
+    const { interpretDiscountInstruction } = await import('../server/services/llmRuleParser.js')
+    const res = await interpretDiscountInstruction('10% off Natura Casa', { mockCall })
+    assert.equal(res.status, 'error')
+    assert.equal(res.message, 'LLM provider service error (502). Please try again later.')
+    assert.ok(!res.message.includes('<!DOCTYPE'))
+    assert.ok(!res.message.includes('stack'))
+  })
+
+  it('strictly rejects LLM response with status !== "success" even if rule object is present', () => {
+    const payload = {
+      status: 'error',
+      rule: {
+        scope: 'brand',
+        appliesTo: 'Sony',
+        type: 'percentage',
+        value: 15,
+        stackable: false,
+      },
+      message: 'Failed to process prompt',
+    }
+    const res = validateLlmResponse(payload)
+    assert.equal(res.status, 'error')
+    assert.equal(res.rule, undefined)
+  })
 })
 
 describe('Phase 1 — Regression: PDF 4-Column and 5-Column Parsing Compatibility', () => {

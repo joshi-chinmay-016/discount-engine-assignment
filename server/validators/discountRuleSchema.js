@@ -162,10 +162,15 @@ export function validateLlmResponse(payload) {
   }
 
   // Case 2: Model successfully produced a rule
-  if (payload.status === 'success' || payload.rule) {
-    const ruleCandidate = payload.rule || payload
-    const validation = validateRuleCandidate(ruleCandidate)
+  if (payload.status === 'success') {
+    if (!payload.rule) {
+      return {
+        status: 'error',
+        message: 'Response status marked "success" but contained no "rule" object.',
+      }
+    }
 
+    const validation = validateRuleCandidate(payload.rule)
     if (!validation.isValid) {
       return {
         status: 'error',
